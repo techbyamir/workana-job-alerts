@@ -30,13 +30,18 @@
     <div class="row">
       <label>
         Interval (min)
-        <input type="number" id="intervalMinutes" min="2" max="30" required />
+        <input type="number" id="intervalMinutes" min="1" max="30" required />
       </label>
       <label>
-        Alert Email
-        <input type="email" id="recipientEmail" required />
+        Max Bids (0 = any)
+        <input type="number" id="maxBids" min="0" max="200" required />
       </label>
     </div>
+
+    <label>
+      Alert Email
+      <input type="email" id="recipientEmail" required />
+    </label>
 
     <label>
       Email API Endpoint

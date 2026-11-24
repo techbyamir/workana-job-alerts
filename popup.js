@@ -2,6 +2,7 @@ const enabledEl = document.getElementById('enabled');
 const jobsUrlEl = document.getElementById('jobsUrl');
 const keywordsEl = document.getElementById('keywords');
 const intervalEl = document.getElementById('intervalMinutes');
+const maxBidsEl = document.getElementById('maxBids');
 const recipientEmailEl = document.getElementById('recipientEmail');
 const apiEndpointEl = document.getElementById('apiEndpoint');
 const apiKeyEl = document.getElementById('apiKey');
@@ -56,7 +57,8 @@ async function loadState() {
   enabledEl.checked = c.enabled !== false;
   jobsUrlEl.value = c.jobsUrl || 'https://www.workana.com/jobs?category=it-programming&language=xx';
   keywordsEl.value = c.keywords ?? 'php, mysql, javascript, typescript, html, css, database, sql, postgresql, mongodb, api, rest, graphql, responsive, web design, web development, android, react, react native, next.js, nextjs, node.js, nodejs, python, c++, electron, chatbot, shopify, web services, system analysis, it, crm, erp, full-stack, fullstack, backend, frontend, wordpress, woocommerce, automation, ai, saas';
-  intervalEl.value = c.intervalMinutes || 3;
+  intervalEl.value = c.intervalMinutes || 2;
+  maxBidsEl.value = c.maxBids ?? 20;
   recipientEmailEl.value = c.recipientEmail || 'ivdamir65@gmail.com';
   apiEndpointEl.value = c.apiEndpoint || 'https://amirence.com/api/job-alerts';
   apiKeyEl.value = c.apiKey || '';
@@ -73,7 +75,8 @@ configForm.addEventListener('submit', (e) => {
         enabled: enabledEl.checked,
         jobsUrl: jobsUrlEl.value.trim(),
         keywords: keywordsEl.value.trim(),
-        intervalMinutes: Math.max(2, Math.min(30, Number(intervalEl.value) || 3)),
+        intervalMinutes: Math.max(1, Math.min(30, Number(intervalEl.value) || 2)),
+        maxBids: Math.max(0, Math.min(200, Number(maxBidsEl.value) || 0)),
         recipientEmail: recipientEmailEl.value.trim(),
         apiEndpoint: apiEndpointEl.value.trim(),
         apiKey: apiKeyEl.value.trim(),

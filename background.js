@@ -11,7 +11,8 @@ const DEFAULT_KEYWORDS = [
 
 const DEFAULT_CONFIG = {
   enabled: true,
-  intervalMinutes: 3,
+  intervalMinutes: 2,
+  maxBids: 20,
   // language=xx fetches all languages and all countries on Workana under IT & Programming.
   jobsUrl: 'https://www.workana.com/jobs?category=it-programming&language=xx',
   apiEndpoint: 'https://amirence.com/api/job-alerts',
@@ -40,7 +41,7 @@ async function setStatus(status) {
 async function scheduleAlarm(config) {
   await chrome.alarms.clear(ALARM_NAME);
   if (!config.enabled) return;
-  const periodInMinutes = Math.max(2, Math.min(30, Number(config.intervalMinutes) || 3));
+  const periodInMinutes = Math.max(1, Math.min(30, Number(config.intervalMinutes) || 2));
   chrome.alarms.create(ALARM_NAME, {
     delayInMinutes: periodInMinutes,
     periodInMinutes,
@@ -71,6 +72,40 @@ function extractFullTitle(rawTitle) {
   return stripTags(str);
 }
 
+function parseBidCount(rawBids) {
+  if (typeof rawBids === 'number' && Number.isFinite(rawBids)) return rawBids;
+  const text = stripTags(String(rawBids || '')).toLowerCase();
+  if (!text) return null;
+  if (/no bids|sem propostas|sin propuestas|0\b/.test(text)) return 0;
+  const match = text.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+function isVeryRecent(postedText) {
+  const text = String(postedText || '').toLowerCase();
+  return /just now|second|minute|minuto|agora|ahora|recién|menos de/.test(text);
+}
+
+function passesBidFilter(job, maxBids) {
+  const limit = Number(maxBids);
+  if (!Number.isFinite(limit) || limit <= 0) return true;
+  if (job.bidCount === null || job.bidCount === undefined) return true;
+  // Slight flexibility (+5 bids) for jobs posted within the last few minutes.
+  const effectiveLimit = isVeryRecent(job.publishedAt) ? limit + 5 : limit;
+  return job.bidCount <= effectiveLimit;
+}
+
+function sortByPriority(jobs) {
+  return [...jobs].sort((a, b) => {
+    const aRecent = isVeryRecent(a.publishedAt) ? 0 : 1;
+    const bRecent = isVeryRecent(b.publishedAt) ? 0 : 1;
+    if (aRecent !== bRecent) return aRecent - bRecent;
+    const aBids = a.bidCount ?? 999;
+    const bBids = b.bidCount ?? 999;
+    return aBids - bBids;
+  });
+}
+
 function parseWorkanaJson(data) {
   const list = data?.results?.results || data?.results || [];
   if (!Array.isArray(list)) return [];
@@ -85,10 +120,11 @@ function parseWorkanaJson(data) {
             .slice(0, 12)
         : [];
 
+      const bidCount = parseBidCount(item.totalBids);
       const historyParts = [];
+      if (bidCount !== null) historyParts.push(`${bidCount} bid${bidCount === 1 ? '' : 's'}`);
       if (item.hasVerifiedPaymentMethod) historyParts.push('Verified payment method');
       if (item.rating?.value) historyParts.push(`Rating ${item.rating.value}`);
-      if (item.totalBids) historyParts.push(String(item.totalBids));
       if (item.isHourly) historyParts.push('Hourly');
 
       return {
@@ -98,6 +134,7 @@ function parseWorkanaJson(data) {
         budget: decodeHtmlEntities(item.budget || ''),
         category: 'IT & Programming',
         publishedAt: decodeHtmlEntities(item.postedDate || item.publishedDate || 'Just now'),
+        bidCount,
         skills,
         description: stripTags(item.description || item.shortDescription || '').slice(0, 500),
         clientName: decodeHtmlEntities(item.authorName || ''),
@@ -321,7 +358,9 @@ async function checkForNewJobs({ manual = false } = {}) {
     }
 
     const newJobs = jobs.filter((j) => !seenSet.has(j.id));
-    const matchingNewJobs = newJobs.filter((j) => matchesKeywords(j, config.keywords));
+    const matchingNewJobs = sortByPriority(
+      newJobs.filter((j) => matchesKeywords(j, config.keywords) && passesBidFilter(j, config.maxBids)),
+    );
     let emailsSent = 0;
     let emailErrors = 0;
 
