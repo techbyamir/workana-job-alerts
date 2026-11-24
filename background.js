@@ -13,7 +13,7 @@ const DEFAULT_CONFIG = {
   enabled: true,
   intervalMinutes: 3,
   // language=xx fetches all languages and all countries on Workana under IT & Programming.
-  jobsUrl: 'https://www.workana.com/jobs?category=it-programming&language=xx&publication=1d',
+  jobsUrl: 'https://www.workana.com/jobs?category=it-programming&language=xx',
   apiEndpoint: 'https://amirence.com/api/job-alerts',
   apiKey: '',
   recipientEmail: 'ivdamir65@gmail.com',
@@ -62,6 +62,49 @@ function decodeHtmlEntities(str) {
 
 function stripTags(html) {
   return decodeHtmlEntities(String(html || '').replace(/<[^>]*>/g, ' '));
+}
+
+function extractFullTitle(rawTitle) {
+  const str = String(rawTitle || '');
+  const attrMatch = str.match(/title="([^"]+)"/i);
+  if (attrMatch) return decodeHtmlEntities(attrMatch[1]);
+  return stripTags(str);
+}
+
+function parseWorkanaJson(data) {
+  const list = data?.results?.results || data?.results || [];
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .filter((item) => item && item.slug)
+    .map((item) => {
+      const skills = Array.isArray(item.skills)
+        ? item.skills
+            .map((s) => decodeHtmlEntities(typeof s === 'string' ? s : s?.anchorText || s?.name || ''))
+            .filter(Boolean)
+            .slice(0, 12)
+        : [];
+
+      const historyParts = [];
+      if (item.hasVerifiedPaymentMethod) historyParts.push('Verified payment method');
+      if (item.rating?.value) historyParts.push(`Rating ${item.rating.value}`);
+      if (item.totalBids) historyParts.push(String(item.totalBids));
+      if (item.isHourly) historyParts.push('Hourly');
+
+      return {
+        id: String(item.slug),
+        title: extractFullTitle(item.title),
+        url: `https://www.workana.com/job/${item.slug}`,
+        budget: decodeHtmlEntities(item.budget || ''),
+        category: 'IT & Programming',
+        publishedAt: decodeHtmlEntities(item.postedDate || item.publishedDate || 'Just now'),
+        skills,
+        description: stripTags(item.description || item.shortDescription || '').slice(0, 500),
+        clientName: decodeHtmlEntities(item.authorName || ''),
+        clientCountry: stripTags(item.country || ''),
+        clientHistory: historyParts.join(' · '),
+      };
+    });
 }
 
 function extractJobsFromHtml(html) {
@@ -212,6 +255,10 @@ async function checkForNewJobs({ manual = false } = {}) {
   try {
     const response = await fetch(config.jobsUrl, {
       method: 'GET',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        Accept: 'application/json, text/html;q=0.9',
+      },
       credentials: 'include',
       cache: 'no-store',
     });
@@ -233,19 +280,25 @@ async function checkForNewJobs({ manual = false } = {}) {
       return { paused: true, status: response.status };
     }
 
-    const html = await response.text();
-    if (/cf-turnstile|verify you are human|just a moment/i.test(html)) {
-      const pausedConfig = { ...config, enabled: false };
-      await chrome.storage.local.set({ config: pausedConfig });
-      await scheduleAlarm(pausedConfig);
-      await setStatus({
-        state: 'paused',
-        message: 'Auto-paused: Cloudflare verification detected. Open Workana in a tab, then re-enable.',
-      });
-      return { paused: true, reason: 'cloudflare' };
+    const contentType = response.headers.get('content-type') || '';
+    let jobs = [];
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
+      jobs = parseWorkanaJson(data);
+    } else {
+      const html = await response.text();
+      if (/cf-turnstile|verify you are human|just a moment/i.test(html)) {
+        const pausedConfig = { ...config, enabled: false };
+        await chrome.storage.local.set({ config: pausedConfig });
+        await scheduleAlarm(pausedConfig);
+        await setStatus({
+          state: 'paused',
+          message: 'Auto-paused: Cloudflare verification detected. Open Workana in a tab, then re-enable.',
+        });
+        return { paused: true, reason: 'cloudflare' };
+      }
+      jobs = extractJobsFromHtml(html);
     }
-
-    const jobs = extractJobsFromHtml(html);
     const stored = await chrome.storage.local.get(['seenIds', 'recentJobs', 'initialized']);
     const seenIds = Array.isArray(stored.seenIds) ? stored.seenIds : [];
     const seenSet = new Set(seenIds);
