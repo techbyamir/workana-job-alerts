@@ -12,6 +12,7 @@ const DEFAULT_KEYWORDS = [
 const DEFAULT_CONFIG = {
   enabled: true,
   intervalMinutes: 2,
+  maxAgeMinutes: 20,
   maxBids: 20,
   // language=xx fetches all languages and all countries on Workana under IT & Programming.
   jobsUrl: 'https://www.workana.com/jobs?category=it-programming&language=xx',
@@ -81,25 +82,53 @@ function parseBidCount(rawBids) {
   return match ? parseInt(match[1], 10) : null;
 }
 
-function isVeryRecent(postedText) {
-  const text = String(postedText || '').toLowerCase();
-  return /just now|second|minute|minuto|agora|ahora|recién|menos de/.test(text);
+function parseAgeMinutes(postedText, publishedDate) {
+  const text = String(postedText || '').toLowerCase().trim();
+  if (text) {
+    if (/just now|agora|ahora|recién|second|segundo|menos de (un|um|1) minut|less than a minute|a few seconds/.test(text)) {
+      return 0;
+    }
+    if (/\b(a|an|one|un|um|uma)\s+minut/.test(text)) {
+      return 1;
+    }
+    const minMatch = text.match(/(\d+)\s*(?:min|minut)/);
+    if (minMatch) return parseInt(minMatch[1], 10);
+
+    if (/\b(hour|hora|hr|day|dia|día|week|semana|month|mes|mês|yesterday|ontem|ayer)\b/.test(text)) {
+      const hrMatch = text.match(/(\d+)\s*(?:hour|hora|hr)/);
+      if (hrMatch) return parseInt(hrMatch[1], 10) * 60;
+      return 60;
+    }
+  }
+
+  if (publishedDate) {
+    const parsed = Date.parse(publishedDate);
+    if (!Number.isNaN(parsed)) {
+      return Math.max(0, Math.round((Date.now() - parsed) / 60000));
+    }
+  }
+  return null;
+}
+
+function passesAgeFilter(job, maxAgeMinutes) {
+  const limit = Number(maxAgeMinutes);
+  if (!Number.isFinite(limit) || limit <= 0) return true;
+  if (job.ageMinutes === null || job.ageMinutes === undefined) return false;
+  return job.ageMinutes <= limit;
 }
 
 function passesBidFilter(job, maxBids) {
   const limit = Number(maxBids);
   if (!Number.isFinite(limit) || limit <= 0) return true;
   if (job.bidCount === null || job.bidCount === undefined) return true;
-  // Slight flexibility (+5 bids) for jobs posted within the last few minutes.
-  const effectiveLimit = isVeryRecent(job.publishedAt) ? limit + 5 : limit;
-  return job.bidCount <= effectiveLimit;
+  return job.bidCount <= limit;
 }
 
 function sortByPriority(jobs) {
   return [...jobs].sort((a, b) => {
-    const aRecent = isVeryRecent(a.publishedAt) ? 0 : 1;
-    const bRecent = isVeryRecent(b.publishedAt) ? 0 : 1;
-    if (aRecent !== bRecent) return aRecent - bRecent;
+    const aAge = a.ageMinutes ?? 9999;
+    const bAge = b.ageMinutes ?? 9999;
+    if (aAge !== bAge) return aAge - bAge;
     const aBids = a.bidCount ?? 999;
     const bBids = b.bidCount ?? 999;
     return aBids - bBids;
@@ -127,13 +156,17 @@ function parseWorkanaJson(data) {
       if (item.rating?.value) historyParts.push(`Rating ${item.rating.value}`);
       if (item.isHourly) historyParts.push('Hourly');
 
+      const publishedAt = decodeHtmlEntities(item.postedDate || item.publishedDate || 'Just now');
+      const ageMinutes = parseAgeMinutes(item.postedDate, item.publishedDate);
+
       return {
         id: String(item.slug),
         title: extractFullTitle(item.title),
         url: `https://www.workana.com/job/${item.slug}`,
         budget: decodeHtmlEntities(item.budget || ''),
         category: 'IT & Programming',
-        publishedAt: decodeHtmlEntities(item.postedDate || item.publishedDate || 'Just now'),
+        publishedAt,
+        ageMinutes,
         bidCount,
         skills,
         description: stripTags(item.description || item.shortDescription || '').slice(0, 500),
@@ -359,7 +392,12 @@ async function checkForNewJobs({ manual = false } = {}) {
 
     const newJobs = jobs.filter((j) => !seenSet.has(j.id));
     const matchingNewJobs = sortByPriority(
-      newJobs.filter((j) => matchesKeywords(j, config.keywords) && passesBidFilter(j, config.maxBids)),
+      newJobs.filter(
+        (j) =>
+          passesAgeFilter(j, config.maxAgeMinutes) &&
+          passesBidFilter(j, config.maxBids) &&
+          matchesKeywords(j, config.keywords),
+      ),
     );
     let emailsSent = 0;
     let emailErrors = 0;

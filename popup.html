@@ -27,13 +27,17 @@
       <input type="text" id="keywords" />
     </label>
 
-    <div class="row">
+    <div class="row-3">
       <label>
         Interval (min)
         <input type="number" id="intervalMinutes" min="1" max="30" required />
       </label>
       <label>
-        Max Bids (0 = any)
+        Max Age (min)
+        <input type="number" id="maxAgeMinutes" min="0" max="1440" required />
+      </label>
+      <label>
+        Max Bids
         <input type="number" id="maxBids" min="0" max="200" required />
       </label>
     </div>

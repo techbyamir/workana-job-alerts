@@ -11,8 +11,9 @@ A lightweight Manifest V3 Chrome extension that monitors **all Workana IT & Prog
 - **All languages & all countries:** Default filter URL is `https://www.workana.com/jobs?category=it-programming&language=xx` (`language=xx` = all languages and countries).
 - **Early & low-competition priority:**
   - Polls every **2 minutes** by default (configurable from 1 to 30 minutes) with gentle random jitter.
-  - Filters by **Max Bids** (default **`20`**, set to `0` for no limit), with slight flexibility (`+5` bids) for jobs posted within the last few minutes.
-  - Sorts matching new jobs so brand-new posts (minutes ago / just now) and jobs with the fewest bids are alerted **first**.
+  - **Max Age filter (default `20` minutes):** Ignores any job posted more than 20 minutes ago — only alerts on fresh jobs posted within the last 20 minutes.
+  - **Max Bids filter (default `20`, set to `0` for no limit):** Only alerts on low-competition jobs with fewer bids from freelancers.
+  - Sorts matching new jobs so the newest posts (fewest minutes ago) and lowest bid counts are alerted **first**.
 - **Configurable skill matching:** Matches job titles, skills, and descriptions against your target stack (PHP, MySQL, JavaScript, TypeScript, HTML, CSS, Databases, SQL, APIs, REST, GraphQL, Responsive Web Design, Android, React, React Native, Next.js, Node.js, Python, C++, Electron, Chatbots, Shopify, Web Services, System Analysis, IT, CRM, ERP, WordPress, Automation, AI, SaaS, etc.). Leave blank to receive alerts for all IT & Programming jobs.
 - **Instant alerts:**
   - **Chrome Desktop Notification** (clickable directly to the Workana job page).
