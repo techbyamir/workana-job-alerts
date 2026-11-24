@@ -378,14 +378,22 @@ async function checkForNewJobs({ manual = false } = {}) {
     // Seed existing jobs on first run so we don't spam alerts for older posts.
     if (!stored.initialized) {
       const initialIds = jobs.map((j) => j.id).slice(0, MAX_SEEN_IDS);
+      const recentFiltered = sortByPriority(
+        jobs.filter(
+          (j) =>
+            passesAgeFilter(j, config.maxAgeMinutes) &&
+            passesBidFilter(j, config.maxBids) &&
+            matchesKeywords(j, config.keywords),
+        ),
+      ).slice(0, MAX_RECENT_JOBS);
       await chrome.storage.local.set({
         initialized: true,
         seenIds: initialIds,
-        recentJobs: jobs.slice(0, MAX_RECENT_JOBS),
+        recentJobs: recentFiltered,
       });
       await setStatus({
         state: 'ok',
-        message: `Initialized with ${jobs.length} existing IT & Programming jobs. Watching for new posts.`,
+        message: `Initialized with ${jobs.length} jobs (${recentFiltered.length} within ${config.maxAgeMinutes} min). Watching for new posts.`,
       });
       return { initialized: true, count: jobs.length };
     }
@@ -418,14 +426,18 @@ async function checkForNewJobs({ manual = false } = {}) {
     }
 
     const updatedSeen = Array.from(new Set(seenIds)).slice(0, MAX_SEEN_IDS);
-    const existingRecent = Array.isArray(stored.recentJobs) ? stored.recentJobs : [];
-    const mergedRecent = [...matchingNewJobs, ...existingRecent]
-      .filter((job, idx, arr) => arr.findIndex((x) => x.id === job.id) === idx)
-      .slice(0, MAX_RECENT_JOBS);
+    const liveMatching = sortByPriority(
+      jobs.filter(
+        (j) =>
+          passesAgeFilter(j, config.maxAgeMinutes) &&
+          passesBidFilter(j, config.maxBids) &&
+          matchesKeywords(j, config.keywords),
+      ),
+    ).slice(0, MAX_RECENT_JOBS);
 
     await chrome.storage.local.set({
       seenIds: updatedSeen,
-      recentJobs: mergedRecent,
+      recentJobs: liveMatching,
     });
 
     await setStatus({
