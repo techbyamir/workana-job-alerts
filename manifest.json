@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Workana IT & Programming Job Alerts",
+  "version": "1.0.0",
+  "description": "Monitors Workana IT & Programming jobs while Chrome is open and sends instant desktop and email alerts for new posts.",
+  "permissions": [
+    "alarms",
+    "notifications",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.workana.com/*",
+    "https://amirence.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Workana Job Alerts"
+  }
+}

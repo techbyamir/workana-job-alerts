@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Workana Job Alerts</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>Workana Job Alerts</h1>
+    <label class="switch">
+      <input type="checkbox" id="enabled" />
+      <span class="slider"></span>
+    </label>
+  </header>
+
+  <div id="statusBox" class="status">Loading status...</div>
+
+  <form id="configForm">
+    <label>
+      Workana Filter URL (IT &amp; Programming)
+      <input type="url" id="jobsUrl" required />
+    </label>
+
+    <div class="row">
+      <label>
+        Interval (min)
+        <input type="number" id="intervalMinutes" min="2" max="30" required />
+      </label>
+      <label>
+        Alert Email
+        <input type="email" id="recipientEmail" required />
+      </label>
+    </div>
+
+    <label>
+      Email API Endpoint
+      <input type="url" id="apiEndpoint" required />
+    </label>
+
+    <label>
+      Email API Key (<code>JOB_ALERT_API_KEY</code>)
+      <input type="password" id="apiKey" placeholder="Enter your server JOB_ALERT_API_KEY" />
+    </label>
+
+    <div class="actions">
+      <button type="submit" class="primary">Save</button>
+      <button type="button" id="checkNowBtn">Check Now</button>
+      <button type="button" id="testEmailBtn">Test Email</button>
+    </div>
+  </form>
+
+  <section>
+    <h2>Recent IT &amp; Programming Jobs</h2>
+    <ul id="recentList" class="recent-list"></ul>
+  </section>
+
+  <script src="popup.js"></script>
+</body>
+</html>
