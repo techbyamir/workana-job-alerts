@@ -1,12 +1,23 @@
 const ALARM_NAME = 'workana-job-poll';
 
+const DEFAULT_KEYWORDS = [
+  'php', 'mysql', 'javascript', 'typescript', 'html', 'css', 'database', 'sql',
+  'postgresql', 'mongodb', 'api', 'rest', 'graphql', 'responsive', 'web design',
+  'web development', 'android', 'react', 'react native', 'next.js', 'nextjs',
+  'node.js', 'nodejs', 'python', 'c++', 'electron', 'chatbot', 'shopify',
+  'web services', 'system analysis', 'it', 'crm', 'erp', 'full-stack', 'fullstack',
+  'backend', 'frontend', 'wordpress', 'woocommerce', 'automation', 'ai', 'saas',
+];
+
 const DEFAULT_CONFIG = {
   enabled: true,
   intervalMinutes: 3,
-  jobsUrl: 'https://www.workana.com/jobs?category=it-programming&publication=1d',
+  // language=xx fetches all languages and all countries on Workana under IT & Programming.
+  jobsUrl: 'https://www.workana.com/jobs?category=it-programming&language=xx&publication=1d',
   apiEndpoint: 'https://amirence.com/api/job-alerts',
   apiKey: '',
   recipientEmail: 'ivdamir65@gmail.com',
+  keywords: DEFAULT_KEYWORDS.join(', '),
 };
 
 const MAX_SEEN_IDS = 500;
@@ -127,6 +138,33 @@ function extractJobsFromHtml(html) {
   return jobs;
 }
 
+function matchesKeywords(job, keywordsStr) {
+  const raw = typeof keywordsStr === 'string' ? keywordsStr.trim() : '';
+  if (!raw) return true;
+  const keywords = raw
+    .split(',')
+    .map((k) => k.trim().toLowerCase())
+    .filter(Boolean);
+  if (keywords.length === 0) return true;
+
+  const haystack = [
+    job.title,
+    job.description,
+    ...(Array.isArray(job.skills) ? job.skills : []),
+  ]
+    .join(' ')
+    .toLowerCase();
+
+  return keywords.some((kw) => {
+    if (kw.length <= 2) {
+      // Whole-word match for short tokens like "it" or "ai"
+      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`\\b${escaped}\\b`, 'i').test(haystack);
+    }
+    return haystack.includes(kw);
+  });
+}
+
 async function sendEmailAlert(config, job) {
   if (!config.apiEndpoint || !config.apiKey) {
     return { skipped: true, reason: 'API key not configured' };
@@ -228,10 +266,15 @@ async function checkForNewJobs({ manual = false } = {}) {
     }
 
     const newJobs = jobs.filter((j) => !seenSet.has(j.id));
+    const matchingNewJobs = newJobs.filter((j) => matchesKeywords(j, config.keywords));
     let emailsSent = 0;
     let emailErrors = 0;
 
     for (const job of newJobs) {
+      seenIds.unshift(job.id);
+    }
+
+    for (const job of matchingNewJobs) {
       notifyDesktop(job);
       try {
         const res = await sendEmailAlert(config, job);
@@ -240,12 +283,11 @@ async function checkForNewJobs({ manual = false } = {}) {
         emailErrors += 1;
         console.error('Failed to send email alert:', err.message);
       }
-      seenIds.unshift(job.id);
     }
 
     const updatedSeen = Array.from(new Set(seenIds)).slice(0, MAX_SEEN_IDS);
     const existingRecent = Array.isArray(stored.recentJobs) ? stored.recentJobs : [];
-    const mergedRecent = [...newJobs, ...existingRecent]
+    const mergedRecent = [...matchingNewJobs, ...existingRecent]
       .filter((job, idx, arr) => arr.findIndex((x) => x.id === job.id) === idx)
       .slice(0, MAX_RECENT_JOBS);
 
@@ -256,12 +298,12 @@ async function checkForNewJobs({ manual = false } = {}) {
 
     await setStatus({
       state: 'ok',
-      message: newJobs.length > 0
-        ? `Found ${newJobs.length} new job(s) (${emailsSent} email(s) sent${emailErrors ? `, ${emailErrors} failed` : ''}).`
-        : `Checked ${jobs.length} jobs — no new posts yet.`,
+      message: matchingNewJobs.length > 0
+        ? `Found ${matchingNewJobs.length} matching new job(s) (${emailsSent} email(s) sent${emailErrors ? `, ${emailErrors} failed` : ''}).`
+        : `Checked ${jobs.length} jobs (all languages/countries) — no new matches yet.`,
     });
 
-    return { checked: jobs.length, newCount: newJobs.length, emailsSent, emailErrors };
+    return { checked: jobs.length, newCount: matchingNewJobs.length, emailsSent, emailErrors };
   } catch (err) {
     await setStatus({
       state: 'error',
