@@ -236,6 +236,7 @@ function notifyDesktop(job) {
   const notifId = `job:${job.url}`;
   chrome.notifications.create(notifId, {
     type: 'basic',
+    iconUrl: chrome.runtime.getURL('icon.png'),
     title: `New Workana Job${job.budget ? ` (${job.budget})` : ''}`,
     message: `${job.title}${job.clientName ? ` — ${job.clientName}` : ''}`,
     priority: 2,
@@ -273,6 +274,7 @@ async function checkForNewJobs({ manual = false } = {}) {
       });
       chrome.notifications.create('workana-paused', {
         type: 'basic',
+        iconUrl: chrome.runtime.getURL('icon.png'),
         title: 'Workana Job Alerts Paused',
         message: `Received HTTP ${response.status}. Monitoring paused automatically to protect your account.`,
         priority: 2,
