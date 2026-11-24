@@ -8,7 +8,7 @@ A lightweight Manifest V3 Chrome extension that monitors **all Workana IT & Prog
 
 - **Runs only while Chrome is open:** Uses a Manifest V3 background service worker and `chrome.alarms`.
 - **No Workana tab required:** You do **not** need to keep Workana open. The extension checks Workana's JSON feed (`X-Requested-With: XMLHttpRequest`) in the background using your normal Chrome session cookies, and stops automatically when you close Chrome.
-- **All languages & all countries:** Default filter URL is `https://www.workana.com/jobs?category=it-programming&language=xx` (`language=xx` = all languages and countries).
+- **All languages & all countries:** Default filter URL is `https://www.workana.com/jobs?category=it-programming&language=xx&publication=1d` (`language=xx` = all languages and countries, `publication=1d` = past 24 hours).
 - **Early & low-competition priority:**
   - Polls every **2 minutes** by default (configurable from 1 to 30 minutes) with gentle random jitter.
   - **Max Age filter (default `20` minutes):** Ignores any job posted more than 20 minutes ago — only alerts on fresh jobs posted within the last 20 minutes.

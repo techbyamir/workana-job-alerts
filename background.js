@@ -15,7 +15,7 @@ const DEFAULT_CONFIG = {
   maxAgeMinutes: 20,
   maxBids: 20,
   // language=xx fetches all languages and all countries on Workana under IT & Programming.
-  jobsUrl: 'https://www.workana.com/jobs?category=it-programming&language=xx',
+  jobsUrl: 'https://www.workana.com/jobs?category=it-programming&language=xx&publication=1d',
   apiEndpoint: 'https://amirence.com/api/job-alerts',
   apiKey: '',
   recipientEmail: 'ivdamir65@gmail.com',
