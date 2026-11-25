@@ -11,6 +11,7 @@ const DEFAULT_KEYWORDS = [
 
 const DEFAULT_CONFIG = {
   enabled: true,
+  checkMessages: true,
   intervalMinutes: 2,
   maxAgeMinutes: 20,
   maxBids: 20,
@@ -313,6 +314,105 @@ function notifyDesktop(job) {
   });
 }
 
+function notifyClientMessage(msg) {
+  const notifId = `msg:${msg.url}`;
+  chrome.notifications.create(notifId, {
+    type: 'basic',
+    iconUrl: chrome.runtime.getURL('icon.png'),
+    title: `💬 Workana Message${msg.clientName ? ` from ${msg.clientName}` : ''}`,
+    message: msg.description || msg.title,
+    priority: 2,
+  });
+}
+
+async function checkForNewMessages(config) {
+  if (!config.checkMessages) return { skipped: true };
+
+  try {
+    const response = await fetch('https://www.workana.com/roaster/search/?page=1', {
+      method: 'GET',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        Accept: 'application/json',
+      },
+      credentials: 'include',
+      cache: 'no-store',
+    });
+
+    if (!response.ok) return { error: `HTTP ${response.status}` };
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) return { skipped: true };
+
+    const projects = await response.json();
+    if (!Array.isArray(projects)) return { skipped: true };
+
+    const stored = await chrome.storage.local.get(['seenMessageKeys', 'messagesInitialized']);
+    const seenKeys = Array.isArray(stored.seenMessageKeys) ? stored.seenMessageKeys : [];
+    const seenSet = new Set(seenKeys);
+
+    const unreadClientMessages = [];
+    for (const project of projects) {
+      const threads = Array.isArray(project?.threads) ? project.threads : [];
+      for (const t of threads) {
+        const hasUnread = Boolean(t?.has_unread) || Number(t?.unreadMessages || 0) > 0;
+        const fromClient = t?.messagePreviewIsMine === false;
+        if (!hasUnread || !fromClient) continue;
+
+        const key = `${t.id}:${t.last_post_created || t.unreadMessages}`;
+        const rawPath = t.roasterUrl || t.url || `/inbox/${project.slug}`;
+        const url = rawPath.startsWith('http') ? rawPath : `https://www.workana.com${rawPath}`;
+        const clientName =
+          decodeHtmlEntities(t.other_party?.name || '') ||
+          decodeHtmlEntities(String(t.name || '').split(' - ').pop() || '');
+
+        unreadClientMessages.push({
+          key,
+          alertType: 'message',
+          title: decodeHtmlEntities(project.name || 'Workana Project'),
+          url,
+          clientName,
+          description: stripTags(t.messagePreview || 'You have a new unread message on Workana.').slice(0, 500),
+          publishedAt: 'Just now',
+        });
+      }
+    }
+
+    // Seed existing unread messages on first run so we don't spam old ones.
+    if (!stored.messagesInitialized) {
+      const initialKeys = unreadClientMessages.map((m) => m.key).slice(0, 200);
+      await chrome.storage.local.set({
+        messagesInitialized: true,
+        seenMessageKeys: initialKeys,
+      });
+      return { initialized: true, unreadCount: unreadClientMessages.length };
+    }
+
+    const brandNew = unreadClientMessages.filter((m) => !seenSet.has(m.key));
+    let emailsSent = 0;
+    for (const msg of brandNew) {
+      notifyClientMessage(msg);
+      try {
+        const res = await sendEmailAlert(config, msg);
+        if (res.sent) emailsSent += 1;
+      } catch (err) {
+        console.error('Failed to send client message email:', err.message);
+      }
+      seenKeys.unshift(msg.key);
+    }
+
+    if (brandNew.length > 0) {
+      await chrome.storage.local.set({
+        seenMessageKeys: Array.from(new Set(seenKeys)).slice(0, 200),
+      });
+    }
+
+    return { newMessages: brandNew.length, emailsSent };
+  } catch (err) {
+    console.error('Message check failed:', err.message);
+    return { error: err.message };
+  }
+}
+
 async function checkForNewJobs({ manual = false } = {}) {
   const config = await getConfig();
   if (!config.enabled && !manual) return { skipped: true };
@@ -440,11 +540,14 @@ async function checkForNewJobs({ manual = false } = {}) {
       recentJobs: liveMatching,
     });
 
+    const msgResult = await checkForNewMessages(config);
+    const msgNote = msgResult?.newMessages ? ` · ${msgResult.newMessages} new client msg(s)!` : '';
+
     await setStatus({
       state: 'ok',
-      message: matchingNewJobs.length > 0
+      message: (matchingNewJobs.length > 0
         ? `Found ${matchingNewJobs.length} matching new job(s) (${emailsSent} email(s) sent${emailErrors ? `, ${emailErrors} failed` : ''}).`
-        : `Checked ${jobs.length} jobs (all languages/countries) — no new matches yet.`,
+        : `Checked ${jobs.length} jobs (all languages/countries) — no new matches yet.`) + msgNote,
     });
 
     return { checked: jobs.length, newCount: matchingNewJobs.length, emailsSent, emailErrors };
@@ -475,7 +578,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.notifications.onClicked.addListener((notifId) => {
-  if (notifId.startsWith('job:')) {
+  if (notifId.startsWith('job:') || notifId.startsWith('msg:')) {
     const url = notifId.slice(4);
     chrome.tabs.create({ url });
   }

@@ -88,6 +88,13 @@ input[type="number"] {
   gap: 8px;
 }
 
+.inline-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
 .actions {
   display: flex;
   gap: 6px;

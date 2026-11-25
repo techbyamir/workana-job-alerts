@@ -5,6 +5,7 @@ const intervalEl = document.getElementById('intervalMinutes');
 const maxAgeEl = document.getElementById('maxAgeMinutes');
 const maxBidsEl = document.getElementById('maxBids');
 const recipientEmailEl = document.getElementById('recipientEmail');
+const checkMessagesEl = document.getElementById('checkMessages');
 const apiEndpointEl = document.getElementById('apiEndpoint');
 const apiKeyEl = document.getElementById('apiKey');
 const statusBox = document.getElementById('statusBox');
@@ -62,6 +63,7 @@ async function loadState() {
   maxAgeEl.value = c.maxAgeMinutes ?? 20;
   maxBidsEl.value = c.maxBids ?? 20;
   recipientEmailEl.value = c.recipientEmail || 'ivdamir65@gmail.com';
+  checkMessagesEl.checked = c.checkMessages !== false;
   apiEndpointEl.value = c.apiEndpoint || 'https://amirence.com/api/job-alerts';
   apiKeyEl.value = c.apiKey || '';
   renderStatus(status);
@@ -81,6 +83,7 @@ configForm.addEventListener('submit', (e) => {
         maxAgeMinutes: Math.max(0, Math.min(1440, Number(maxAgeEl.value) || 0)),
         maxBids: Math.max(0, Math.min(200, Number(maxBidsEl.value) || 0)),
         recipientEmail: recipientEmailEl.value.trim(),
+        checkMessages: checkMessagesEl.checked,
         apiEndpoint: apiEndpointEl.value.trim(),
         apiKey: apiKeyEl.value.trim(),
       },
