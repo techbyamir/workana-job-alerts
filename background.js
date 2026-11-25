@@ -284,23 +284,34 @@ async function sendEmailAlert(config, job) {
     return { skipped: true, reason: 'API key not configured' };
   }
 
-  const response = await fetch(config.apiEndpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': config.apiKey,
-    },
-    body: JSON.stringify({
-      ...job,
-      to: config.recipientEmail || 'ivdamir65@gmail.com',
-    }),
-  });
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(config.apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': config.apiKey,
+        },
+        body: JSON.stringify({
+          ...job,
+          to: config.recipientEmail || 'ivdamir65@gmail.com',
+        }),
+      });
 
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`Email API ${response.status}: ${text.slice(0, 120)}`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`Email API ${response.status}: ${text.slice(0, 120)}`);
+      }
+      return { sent: true };
+    } catch (err) {
+      lastError = err;
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+    }
   }
-  return { sent: true };
+  throw lastError;
 }
 
 function notifyDesktop(job) {
@@ -395,7 +406,7 @@ async function checkForNewMessages(config) {
         const res = await sendEmailAlert(config, msg);
         if (res.sent) emailsSent += 1;
       } catch (err) {
-        console.error('Failed to send client message email:', err.message);
+        console.warn('Failed to send client message email:', err.message);
       }
       seenKeys.unshift(msg.key);
     }
@@ -408,7 +419,7 @@ async function checkForNewMessages(config) {
 
     return { newMessages: brandNew.length, emailsSent };
   } catch (err) {
-    console.error('Message check failed:', err.message);
+    console.warn('Message check failed:', err.message);
     return { error: err.message };
   }
 }
@@ -521,7 +532,7 @@ async function checkForNewJobs({ manual = false } = {}) {
         if (res.sent) emailsSent += 1;
       } catch (err) {
         emailErrors += 1;
-        console.error('Failed to send email alert:', err.message);
+        console.warn('Failed to send email alert:', err.message);
       }
     }
 
