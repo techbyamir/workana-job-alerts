@@ -337,7 +337,7 @@ function notifyClientMessage(msg) {
 }
 
 async function checkForNewMessages(config) {
-  if (!config.checkMessages) return { skipped: true };
+  if (!config.enabled || !config.checkMessages) return { skipped: true };
 
   try {
     const response = await fetch('https://www.workana.com/roaster/search/?page=1', {
@@ -426,7 +426,15 @@ async function checkForNewMessages(config) {
 
 async function checkForNewJobs({ manual = false } = {}) {
   const config = await getConfig();
-  if (!config.enabled && !manual) return { skipped: true };
+  if (!config.enabled) {
+    if (manual) {
+      await setStatus({
+        state: 'paused',
+        message: 'Extension is disabled — enable the switch to receive desktop and email alerts.',
+      });
+    }
+    return { skipped: true, disabled: true };
+  }
 
   // Gentle random jitter (0-12s) on scheduled polls so traffic stays natural.
   if (!manual) {

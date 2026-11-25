@@ -1,4 +1,5 @@
 const enabledEl = document.getElementById('enabled');
+const toggleLabelEl = document.getElementById('toggleLabel');
 const jobsUrlEl = document.getElementById('jobsUrl');
 const keywordsEl = document.getElementById('keywords');
 const intervalEl = document.getElementById('intervalMinutes');
@@ -53,10 +54,16 @@ function renderRecentJobs(jobs) {
   }
 }
 
+function updateToggleLabel(isEnabled) {
+  toggleLabelEl.textContent = isEnabled ? 'Enabled' : 'Disabled';
+  toggleLabelEl.className = isEnabled ? 'toggle-label' : 'toggle-label off';
+}
+
 async function loadState() {
   const { config, status, recentJobs } = await chrome.storage.local.get(['config', 'status', 'recentJobs']);
   const c = config || {};
   enabledEl.checked = c.enabled !== false;
+  updateToggleLabel(enabledEl.checked);
   jobsUrlEl.value = c.jobsUrl || 'https://www.workana.com/jobs?category=it-programming&language=xx&publication=1d';
   keywordsEl.value = c.keywords ?? 'php, mysql, javascript, typescript, html, css, database, sql, postgresql, mongodb, api, rest, graphql, responsive, web design, web development, android, react, react native, next.js, nextjs, node.js, nodejs, python, c++, electron, chatbot, shopify, web services, system analysis, it, crm, erp, full-stack, fullstack, backend, frontend, wordpress, woocommerce, automation, ai, saas';
   intervalEl.value = c.intervalMinutes || 2;
@@ -95,6 +102,7 @@ configForm.addEventListener('submit', (e) => {
 });
 
 enabledEl.addEventListener('change', () => {
+  updateToggleLabel(enabledEl.checked);
   configForm.requestSubmit();
 });
 

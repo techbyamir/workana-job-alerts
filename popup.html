@@ -8,10 +8,13 @@
 <body>
   <header>
     <h1>Workana Job Alerts</h1>
-    <label class="switch">
-      <input type="checkbox" id="enabled" />
-      <span class="slider"></span>
-    </label>
+    <div class="toggle-wrap">
+      <span id="toggleLabel" class="toggle-label">Enabled</span>
+      <label class="switch" title="Enable or disable alerts">
+        <input type="checkbox" id="enabled" />
+        <span class="slider"></span>
+      </label>
+    </div>
   </header>
 
   <div id="statusBox" class="status">Loading status...</div>
